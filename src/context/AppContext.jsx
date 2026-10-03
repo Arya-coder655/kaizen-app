@@ -199,7 +199,7 @@ export function AppProvider({ children }) {
 
   // Current User
   const currentUser = store.users.find(u => u.userId === store.currentUserId) || store.users[0];
-  const isAdmin = false;
+  const isAdmin = currentUser?.role === 'admin';
 
   // Activity logger
   const logActivity = (actionType, description, metadata = {}) => {
