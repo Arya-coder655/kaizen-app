@@ -1,7 +1,7 @@
 // Kaizen Smart Voice Assistant Natural Language Engine
 // Maps conversational voice commands to real application actions with rich spoken responses
 
-import { getTodayStr, addDays, formatDateShort, formatDateDisplay } from './dateUtils';
+import { getTodayStr, addDays, formatDateShort, formatDateDisplay } from './dateUtils.js';
 
 // Canonical list of all application tabs and rich voice trigger synonyms
 export const APP_TABS = [
@@ -198,8 +198,15 @@ export const APP_TABS = [
 // Helper to match spoken text against all application tabs
 export function matchTabFromVoice(rawText) {
   if (!rawText) return null;
+  const lower = rawText.toLowerCase().trim();
+
+  // If this is clearly an action command (creating, scheduling, spending, completing), don't hijack as tab navigation
+  if (/^(add|create|new|schedule|plan|spent|spend|log|record|mark|complete|finish)\b/i.test(lower)) {
+    return null;
+  }
+
   // Strip all punctuation like trailing periods, commas, questions
-  const noPunct = rawText.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?"']/g, ' ');
+  const noPunct = lower.replace(/[.,/#!$%^&*;:{}=\-_`~()?"']/g, ' ');
   const clean = noPunct
     .replace(/\b(please|can you|could you|would you|i want to|want to|take me to|switch to|navigate to|go to|show me|show|open|view|launch|the|my|a)\b/gi, ' ')
     .replace(/\b(tab|screen|page|section|view)\b/gi, ' ')
@@ -210,23 +217,25 @@ export function matchTabFromVoice(rawText) {
 
   // 1. Direct match with keywords
   for (const tab of APP_TABS) {
-    if (tab.keywords.some(k => k === clean || clean === k)) {
+    if (tab.keywords.some(k => k === clean)) {
       return tab;
     }
   }
 
   // 2. Starts with or ends with
   for (const tab of APP_TABS) {
-    if (tab.keywords.some(k => clean.startsWith(k) || clean.endsWith(k) || k.startsWith(clean))) {
+    if (tab.keywords.some(k => clean.startsWith(k) || clean.endsWith(k))) {
       return tab;
     }
   }
 
-  // 3. Word inclusion
+  // 3. Word inclusion only for focused short queries (<= 3 words)
   const words = clean.split(' ').filter(w => w.length >= 3);
-  for (const tab of APP_TABS) {
-    if (tab.keywords.some(k => words.some(w => k.includes(w)))) {
-      return tab;
+  if (words.length <= 3) {
+    for (const tab of APP_TABS) {
+      if (tab.keywords.some(k => words.some(w => k === w || k.includes(w)))) {
+        return tab;
+      }
     }
   }
 
@@ -246,6 +255,41 @@ export function parseVoiceIntent(transcript, context = {}) {
       title: '',
       spokenResponse: "I didn't catch that. Please speak your command or request.",
       actionType: 'none'
+    };
+  }
+
+  // 0. HIDDEN EASTER EGG: "HOW IS YOUR BOSS" / "WHO IS YOUR BOSS"
+  const cleanLower = lower.replace(/[.,/#!$%^&*;:{}=\-_`~()?"']/g, ' ').replace(/\s+/g, ' ').trim();
+  const isBossQuery = (
+    cleanLower.includes('your boss') ||
+    cleanLower.includes('the boss') ||
+    cleanLower.includes('about your boss') ||
+    cleanLower.includes('about boss') ||
+    cleanLower.includes('who is boss') ||
+    cleanLower.includes('who s boss') ||
+    cleanLower.includes('how s boss') ||
+    cleanLower.includes('how is boss') ||
+    cleanLower.includes('who created you') ||
+    cleanLower.includes('who made you') ||
+    cleanLower.includes('who is your creator') ||
+    cleanLower.includes('who is your master') ||
+    cleanLower.includes('who is your owner') ||
+    cleanLower.includes('arya more') ||
+    cleanLower === 'who is arya' ||
+    cleanLower.includes('about arya') ||
+    cleanLower === 'who is your boss' ||
+    cleanLower === 'how is your boss'
+  );
+
+  if (isBossQuery) {
+    return {
+      intent: 'BOSS_EASTER_EGG',
+      confidence: 1.0,
+      actionType: 'boss_easter_egg',
+      bossName: 'Arya More',
+      spokenResponse: `Arya More is My Boss, he is so smart and handsome. I love you boss!`,
+      displayResponse: `Arya More is My Boss, he is so smart and handsome. "I love you boss!" ❤️👑✨`,
+      easterEgg: true
     };
   }
 
@@ -595,10 +639,10 @@ export function parseVoiceIntent(transcript, context = {}) {
   }
 
   let estimatedMinutes = 45;
-  const minMatch = text.match(/(\d+)\s*(?:minutes|mins|min|hours|hour|hr|hrs)/i);
+  const minMatch = text.match(/(\d+)\s*(minutes|mins|min|hours|hour|hr|hrs)/i);
   if (minMatch) {
     const val = parseInt(minMatch[1], 10);
-    const unit = minMatch[2].toLowerCase();
+    const unit = (minMatch[2] || '').toLowerCase();
     estimatedMinutes = unit.startsWith("h") ? val * 60 : val;
   }
 
@@ -713,6 +757,15 @@ export function executeVoiceIntent(parsed, transcript, app) {
         });
         result.executed = true;
         result.entity = parsed.task;
+        break;
+      }
+
+      case 'boss_easter_egg': {
+        result.executed = true;
+        result.entity = {
+          name: 'Arya More (Boss & Creator)',
+          status: 'Smart & Handsome Mastermind 👑'
+        };
         break;
       }
 

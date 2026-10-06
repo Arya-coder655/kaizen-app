@@ -177,6 +177,7 @@ export default function VoiceAssistantHUD({ isOpen, onClose }) {
       intent: parsed.intent,
       actionType: parsed.actionType,
       spokenResponse: parsed.spokenResponse,
+      displayResponse: parsed.displayResponse || parsed.spokenResponse,
       entity: execution?.entity || null,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
@@ -185,9 +186,23 @@ export default function VoiceAssistantHUD({ isOpen, onClose }) {
       try {
         confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 }, colors: ['#DFCA95', '#C5A059', '#10B981'] });
       } catch (e) {}
+    } else if (parsed.actionType === 'boss_easter_egg') {
+      try {
+        confetti({
+          particleCount: 85,
+          spread: 85,
+          origin: { y: 0.6 },
+          colors: ['#DFCA95', '#C5A059', '#E11D48', '#FF69B4', '#FFD700']
+        });
+      } catch (e) {}
     }
 
-    showToast(`Voice AI: ${parsed.spokenResponse.slice(0, 60)}...`, 'gold');
+    showToast(
+      parsed.actionType === 'boss_easter_egg' 
+        ? "👑 Secret Boss Easter Egg Discovered!" 
+        : `Voice AI: ${parsed.spokenResponse.slice(0, 60)}...`, 
+      'gold'
+    );
   };
 
   const handleReplayAudio = () => {
@@ -324,17 +339,36 @@ export default function VoiceAssistantHUD({ isOpen, onClose }) {
 
           {/* Last Response & Spoken Reply Card */}
           {lastResponse && (
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-[#FCF9F3] to-[#F5EFEB] border-2 border-[#DFCA95] space-y-2.5 animate-scale-in">
+            <div className={`p-4 rounded-2xl border-2 space-y-2.5 animate-scale-in ${
+              lastResponse.actionType === 'boss_easter_egg'
+                ? 'bg-gradient-to-r from-[#FFFDF7] via-[#FFF8EC] to-[#FFF1F2] border-[#E11D48]/50 shadow-md ring-2 ring-[#DFCA95]/40'
+                : 'bg-gradient-to-r from-[#FCF9F3] to-[#F5EFEB] border-[#DFCA95]'
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-[#C5A059]" />
-                  <span className="font-serif font-bold text-xs text-stone-900">
-                    Kaizen Spoken Response
-                  </span>
+                  {lastResponse.actionType === 'boss_easter_egg' ? (
+                    <>
+                      <span className="text-base animate-bounce">👑</span>
+                      <span className="font-serif font-bold text-xs text-[#9E1A2F]">
+                        Secret Boss Easter Egg Unlocked
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-[#C5A059]" />
+                      <span className="font-serif font-bold text-xs text-stone-900">
+                        Kaizen Spoken Response
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-[#F3E8CB] text-[#7A5C24] px-2 py-0.5 rounded-full border border-[#DFCA95]">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                    lastResponse.actionType === 'boss_easter_egg'
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : 'bg-[#F3E8CB] text-[#7A5C24] border-[#DFCA95]'
+                  }`}>
                     {lastResponse.intent.replace('_', ' ')}
                   </span>
 
@@ -348,15 +382,17 @@ export default function VoiceAssistantHUD({ isOpen, onClose }) {
                 </div>
               </div>
 
-              <p className="text-xs text-stone-800 leading-relaxed font-medium">
-                {lastResponse.spokenResponse}
+              <p className={`text-xs leading-relaxed font-semibold ${
+                lastResponse.actionType === 'boss_easter_egg' ? 'text-[#9E1A2F]' : 'text-stone-800'
+              }`}>
+                {lastResponse.displayResponse || lastResponse.spokenResponse}
               </p>
 
               {lastResponse.entity && (
                 <div className="pt-2 border-t border-[#DFCA95]/40 flex items-center gap-2 text-[11px] text-[#7A5C24]">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span className="font-semibold truncate">
-                    Action executed: {lastResponse.entity.name || lastResponse.entity.title || 'Updated'}
+                    {lastResponse.entity.name}: {lastResponse.entity.status || 'Verified'}
                   </span>
                 </div>
               )}

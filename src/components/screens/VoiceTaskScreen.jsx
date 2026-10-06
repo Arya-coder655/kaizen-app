@@ -256,6 +256,7 @@ export default function VoiceTaskScreen() {
       intent: parsed.intent,
       actionType: parsed.actionType,
       spokenResponse: parsed.spokenResponse,
+      displayResponse: parsed.displayResponse || parsed.spokenResponse,
       entity: exec?.entity || null,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
@@ -264,9 +265,23 @@ export default function VoiceTaskScreen() {
       try {
         confetti({ particleCount: 50, spread: 65, origin: { y: 0.8 }, colors: ['#DFCA95', '#C5A059', '#10B981'] });
       } catch (e) {}
+    } else if (parsed.actionType === 'boss_easter_egg') {
+      try {
+        confetti({
+          particleCount: 85,
+          spread: 80,
+          origin: { y: 0.7 },
+          colors: ['#DFCA95', '#C5A059', '#E11D48', '#FF69B4', '#FFD700']
+        });
+      } catch (e) {}
     }
 
-    showToast(`Voice AI: ${parsed.spokenResponse.slice(0, 60)}...`, 'gold');
+    showToast(
+      parsed.actionType === 'boss_easter_egg' 
+        ? "👑 Secret Boss Easter Egg Discovered!" 
+        : `Voice AI: ${parsed.spokenResponse.slice(0, 60)}...`, 
+      'gold'
+    );
   };
 
   handleExecuteCommandRef.current = handleExecuteCommand;
@@ -459,17 +474,36 @@ export default function VoiceTaskScreen() {
 
           {/* Last Executed Action Result & Audio Spoken Response */}
           {executionResult && (
-            <div className="p-5 rounded-2xl bg-gradient-to-r from-[#FCF9F3] to-[#F5EFEB] border-2 border-[#C5A059] text-left space-y-3 animate-scale-in">
+            <div className={`p-5 rounded-2xl border-2 text-left space-y-3 animate-scale-in ${
+              executionResult.actionType === 'boss_easter_egg'
+                ? 'bg-gradient-to-r from-[#FFFDF7] via-[#FFF9EE] to-[#FFF1F2] border-[#E11D48]/50 shadow-md ring-2 ring-[#DFCA95]/40'
+                : 'bg-gradient-to-r from-[#FCF9F3] to-[#F5EFEB] border-[#C5A059]'
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  <span className="font-serif font-bold text-sm text-stone-900">
-                    Voice Action Executed Successfully
-                  </span>
+                  {executionResult.actionType === 'boss_easter_egg' ? (
+                    <>
+                      <span className="text-xl animate-bounce">👑</span>
+                      <span className="font-serif font-bold text-sm text-[#9E1A2F]">
+                        Secret Boss Easter Egg Unlocked
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      <span className="font-serif font-bold text-sm text-stone-900">
+                        Voice Action Executed Successfully
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                    executionResult.actionType === 'boss_easter_egg'
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  }`}>
                     {executionResult.intent}
                   </span>
 
@@ -484,15 +518,19 @@ export default function VoiceTaskScreen() {
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-white border border-[#DFCA95]/40 text-xs text-stone-800 leading-relaxed font-medium">
-                <p>{executionResult.spokenResponse}</p>
+              <div className={`p-3.5 rounded-xl border text-xs leading-relaxed font-semibold ${
+                executionResult.actionType === 'boss_easter_egg'
+                  ? 'bg-white/90 border-rose-200 text-[#9E1A2F]'
+                  : 'bg-white border-[#DFCA95]/40 text-stone-800 font-medium'
+              }`}>
+                <p>{executionResult.displayResponse || executionResult.spokenResponse}</p>
               </div>
 
               {executionResult.entity && (
                 <div className="text-[11px] text-[#7A5C24] font-semibold flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span>
-                    Linked Data: {executionResult.entity.name || executionResult.entity.title || 'Updated'}
+                    {executionResult.entity.name}: {executionResult.entity.status || 'Verified'}
                   </span>
                 </div>
               )}
