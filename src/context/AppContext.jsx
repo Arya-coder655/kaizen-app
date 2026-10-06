@@ -185,8 +185,8 @@ export function AppProvider({ children }) {
     }
   }, [store]);
 
-  // Toast Helper - Stays on screen for exactly 2 seconds and ensures only 1 notification is shown at a time
-  const showToast = (message, type = 'gold', duration = 2000) => {
+  // Toast Helper - Stays on screen for 5 seconds and ensures only 1 notification is shown at a time
+  const showToast = (message, type = 'gold', duration = 5000) => {
     const id = Date.now() + Math.random().toString(36).substring(2, 6);
     // Replace any existing toasts so only 1 notification appears on screen at a time
     setToasts([{ id, message, type }]);
@@ -1067,7 +1067,7 @@ export function AppProvider({ children }) {
       playDropSound(0.75);
     }
     if (showToastAlert) {
-      showToast(`🔔 ${notif.title}`, 'gold', 2000);
+      showToast(`🔔 ${notif.title}`, 'gold', 5000);
     }
   };
 
@@ -1115,8 +1115,8 @@ export function AppProvider({ children }) {
       schedules: prev.schedules.map(s => (s.scheduleId === schId || s.loopReminder) ? { ...s, lastLoopTime: now, loopCount: (s.loopCount || 0) + (s.scheduleId === schId ? 1 : 0) } : s)
     }));
 
-    // Exactly ONE notification appears on screen, lasting 2 seconds
-    showToast(`💧 10-Min Loop Alert: "${title}" (Drop sound played)`, 'gold', 2000);
+    // Exactly ONE notification appears on screen, lasting 5 seconds
+    showToast(`💧 10-Min Loop Alert: "${title}" (Drop sound played)`, 'gold', 5000);
     logActivity('loop_notification_emitted', `Emitted 10-minute loop notification for "${title}"`);
   };
 
@@ -1126,9 +1126,9 @@ export function AppProvider({ children }) {
       const nextVal = task ? !task.loopReminder : true;
       if (nextVal) {
         playDropSound(0.7);
-        showToast(`10-minute drop sound notification loop enabled for '${task?.name}'`, 'gold', 2000);
+        showToast(`10-minute drop sound notification loop enabled for '${task?.name}'`, 'gold', 5000);
       } else {
-        showToast(`10-minute loop paused for '${task?.name}'`, 'info', 2000);
+        showToast(`10-minute loop paused for '${task?.name}'`, 'info', 5000);
       }
       return {
         ...prev,
@@ -1143,9 +1143,9 @@ export function AppProvider({ children }) {
       const nextVal = sch ? !sch.loopReminder : true;
       if (nextVal) {
         playDropSound(0.7);
-        showToast(`10-minute drop sound notification loop enabled for '${sch?.title}'`, 'gold', 2000);
+        showToast(`10-minute drop sound notification loop enabled for '${sch?.title}'`, 'gold', 5000);
       } else {
-        showToast(`10-minute loop paused for '${sch?.title}'`, 'info', 2000);
+        showToast(`10-minute loop paused for '${sch?.title}'`, 'info', 5000);
       }
       return {
         ...prev,
