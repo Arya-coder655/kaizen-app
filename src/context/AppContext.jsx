@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import {
   INITIAL_USERS,
@@ -42,6 +42,7 @@ export function AppProvider({ children }) {
       voiceEntries: INITIAL_VOICE_ENTRIES,
       systemSettings: INITIAL_SYSTEM_SETTINGS,
       backups: INITIAL_BACKUPS,
+      lastGlobalLoopAlertTime: Date.now(),
       themePalette: 'royal-gold' // royal-gold, champagne, sand
     };
 
@@ -184,13 +185,14 @@ export function AppProvider({ children }) {
     }
   }, [store]);
 
-  // Toast Helper
-  const showToast = (message, type = 'gold') => {
+  // Toast Helper - Stays on screen for exactly 2 seconds and ensures only 1 notification is shown at a time
+  const showToast = (message, type = 'gold', duration = 2000) => {
     const id = Date.now() + Math.random().toString(36).substring(2, 6);
-    setToasts(prev => [...prev, { id, message, type }]);
+    // Replace any existing toasts so only 1 notification appears on screen at a time
+    setToasts([{ id, message, type }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 4000);
+    }, duration);
   };
 
   const removeToast = (id) => {
@@ -1047,7 +1049,7 @@ export function AppProvider({ children }) {
     }));
   };
 
-  const addNotification = (notif, playSound = true) => {
+  const addNotification = (notif, playSound = true, showToastAlert = true) => {
     const newN = {
       notificationId: `NOTIF-${Date.now()}`,
       userId: currentUser.userId,
@@ -1064,7 +1066,9 @@ export function AppProvider({ children }) {
     if (playSound) {
       playDropSound(0.75);
     }
-    showToast(`🔔 ${notif.title}`, 'gold');
+    if (showToastAlert) {
+      showToast(`🔔 ${notif.title}`, 'gold', 2000);
+    }
   };
 
   // 10-Minute Loop Reminder Operations with Drop Sound
@@ -1089,31 +1093,30 @@ export function AppProvider({ children }) {
       schId = itemOrId.scheduleId;
     }
 
-    // Play signature water drop sound
+    // Play signature water drop sound once
     playDropSound(0.85);
 
     const message = customMsg || `10-Minute Recurring Reminder: Remember to continue work on "${title}". The drop sound notification loop is active.`;
 
+    // Save to notification ledger without creating duplicate toast
     addNotification({
       title: `💧 10m Loop Reminder: ${title}`,
       message,
       type: 'loop_reminder'
-    }, false);
+    }, false, false);
 
-    if (taskId) {
-      setStore(prev => ({
-        ...prev,
-        tasks: prev.tasks.map(t => t.taskId === taskId ? { ...t, lastLoopTime: Date.now(), loopCount: (t.loopCount || 0) + 1 } : t)
-      }));
-    }
-    if (schId) {
-      setStore(prev => ({
-        ...prev,
-        schedules: prev.schedules.map(s => s.scheduleId === schId ? { ...s, lastLoopTime: Date.now(), loopCount: (s.loopCount || 0) + 1 } : s)
-      }));
-    }
+    const now = Date.now();
 
-    showToast(`💧 10-Min Loop Alert: "${title}" (Drop sound played)`, 'gold');
+    // Advance all active loop reminders and record global alert time
+    setStore(prev => ({
+      ...prev,
+      lastGlobalLoopAlertTime: now,
+      tasks: prev.tasks.map(t => (t.taskId === taskId || t.loopReminder) ? { ...t, lastLoopTime: now, loopCount: (t.loopCount || 0) + (t.taskId === taskId ? 1 : 0) } : t),
+      schedules: prev.schedules.map(s => (s.scheduleId === schId || s.loopReminder) ? { ...s, lastLoopTime: now, loopCount: (s.loopCount || 0) + (s.scheduleId === schId ? 1 : 0) } : s)
+    }));
+
+    // Exactly ONE notification appears on screen, lasting 2 seconds
+    showToast(`💧 10-Min Loop Alert: "${title}" (Drop sound played)`, 'gold', 2000);
     logActivity('loop_notification_emitted', `Emitted 10-minute loop notification for "${title}"`);
   };
 
@@ -1123,9 +1126,9 @@ export function AppProvider({ children }) {
       const nextVal = task ? !task.loopReminder : true;
       if (nextVal) {
         playDropSound(0.7);
-        showToast(`10-minute drop sound notification loop enabled for '${task?.name}'`, 'gold');
+        showToast(`10-minute drop sound notification loop enabled for '${task?.name}'`, 'gold', 2000);
       } else {
-        showToast(`10-minute loop paused for '${task?.name}'`, 'info');
+        showToast(`10-minute loop paused for '${task?.name}'`, 'info', 2000);
       }
       return {
         ...prev,
@@ -1140,9 +1143,9 @@ export function AppProvider({ children }) {
       const nextVal = sch ? !sch.loopReminder : true;
       if (nextVal) {
         playDropSound(0.7);
-        showToast(`10-minute drop sound notification loop enabled for '${sch?.title}'`, 'gold');
+        showToast(`10-minute drop sound notification loop enabled for '${sch?.title}'`, 'gold', 2000);
       } else {
-        showToast(`10-minute loop paused for '${sch?.title}'`, 'info');
+        showToast(`10-minute loop paused for '${sch?.title}'`, 'info', 2000);
       }
       return {
         ...prev,
@@ -1151,35 +1154,46 @@ export function AppProvider({ children }) {
     });
   };
 
-  // Recurring 10-Minute Loop Background Interval
+  // Recurring 10-Minute Loop Background Interval (Strictly ensures only 1 notification every 10 minutes)
+  const lastGlobalLoopRef = useRef(Date.now());
+
   useEffect(() => {
     const TEN_MINUTES_MS = 10 * 60 * 1000;
     const interval = setInterval(() => {
       const now = Date.now();
+      const lastAlert = store.lastGlobalLoopAlertTime || lastGlobalLoopRef.current;
 
-      // Check tasks with active 10-min loop
-      store.tasks.forEach(task => {
-        if (task.loopReminder && task.status !== 'completed') {
-          const lastTime = task.lastLoopTime || now;
-          if (now - lastTime >= TEN_MINUTES_MS) {
-            trigger10MinLoopAlert(task);
-          }
-        }
-      });
+      // Strictly ensure at least 10 minutes (600,000 ms) have passed since the LAST notification
+      if (now - lastAlert < TEN_MINUTES_MS) {
+        return;
+      }
 
-      // Check schedules with active 10-min loop
-      store.schedules.forEach(sch => {
-        if (sch.loopReminder && sch.status !== 'completed') {
-          const lastTime = sch.lastLoopTime || now;
-          if (now - lastTime >= TEN_MINUTES_MS) {
-            trigger10MinLoopAlert(sch);
-          }
-        }
-      });
+      // Pick ONLY ONE single highest priority item to alert the user
+      const today = new Date().toISOString().split("T")[0];
+
+      // 1. Check if there is an active focus schedule for today
+      const activeSchedule = store.schedules.find(s => 
+        s.loopReminder && 
+        s.status !== 'completed' && 
+        (s.startDate === today || s.date === today)
+      );
+
+      // 2. Or check for in-progress or high-priority task
+      const activeTask = 
+        store.tasks.find(t => t.loopReminder && t.status === 'in_progress') ||
+        store.tasks.find(t => t.loopReminder && t.status !== 'completed' && t.priority === 'high') ||
+        store.tasks.find(t => t.loopReminder && t.status !== 'completed');
+
+      const singleCandidate = activeSchedule || activeTask;
+
+      if (singleCandidate) {
+        lastGlobalLoopRef.current = now;
+        trigger10MinLoopAlert(singleCandidate);
+      }
     }, 15000); // checks every 15s
 
     return () => clearInterval(interval);
-  }, [store.tasks, store.schedules]);
+  }, [store.tasks, store.schedules, store.lastGlobalLoopAlertTime]);
 
   // AI Suggestions
   const requestNewAiSuggestion = () => {
